@@ -1,0 +1,24 @@
+[project]
+name = "mojo-marisa-trie"
+version = "0.1.0"
+description = "Static compact tries with Mojo traversal kernels"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Lee Penkman", email = "leepenkman@gmail.com" }]
+keywords = ["mojo", "trie", "marisa", "succinct", "prefix-search"]
+dependencies = ["numpy"]
+
+[project.optional-dependencies]
+dev = ["pytest", "marisa-trie"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = { "" = "python" }
+py-modules = ["marisa_trie"]
+
+[tool.setuptools.packages.find]
+where = ["python"]
