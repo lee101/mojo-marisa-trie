@@ -1,4 +1,3 @@
-from std.algorithm import parallelize
 from std.sys import simd_width_of
 
 comptime I32Ptr = UnsafePointer[Int32, AnyOrigin[mut=True]]
@@ -193,7 +192,7 @@ def mmtrie_lookup_many(
         var length = Int(segment_lengths[edge])
         if start < 0 or length <= 0 or start + length > pool_size:
             return 5
-    @parameter
+    @__parameter
     def lookup_chunk(chunk: Int):
         var first = chunk * BATCH_GRAIN
         var last = min(first + BATCH_GRAIN, count)
@@ -212,10 +211,8 @@ def mmtrie_lookup_many(
             )
 
     var chunks = (count + BATCH_GRAIN - 1) // BATCH_GRAIN
-    if chunks > 1:
-        parallelize[lookup_chunk](chunks, min(chunks, 8))
-    elif count > 0:
-        lookup_chunk(0)
+    for chunk in range(chunks):
+        lookup_chunk(chunk)
     return 0
 
 
