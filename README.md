@@ -87,16 +87,18 @@ slower.
 
 | operation | mojo-marisa-trie | marisa-trie 1.4.1 | upstream / Mojo |
 |---|---:|---:|---:|
-| build Trie (151k keys) | 183.92 ms | 116.06 ms | 0.63x |
-| scalar get (100.5k queries) | 51.87 ms | 56.44 ms | 1.09x |
-| bulk key_ids (100.5k queries) | 42.31 ms | 59.02 ms | 1.40x |
-| prefixes (20k queries) | 23.21 ms | 19.95 ms | 0.86x |
+| build Trie (151k keys) | 160.49 ms | 113.26 ms | 0.71x |
+| scalar get (100.5k queries) | 53.19 ms | 54.68 ms | 1.03x |
+| bulk key_ids (100.5k queries) | 51.46 ms | 58.73 ms | 1.14x |
+| prefixes (20k queries) | 21.21 ms | 19.65 ms | 0.93x |
 
-Scalar dictionary lookup was 1.09x faster and bulk lookup was 1.40x faster
+Scalar dictionary lookup was 1.03x faster and bulk lookup was 1.14x faster
 than the corresponding upstream scalar loops on this run. Construction and
-prefix lookup were slower.
+prefix lookup remained slower.
 
-No GPU path is provided; this implementation targets CPU traversal.
+No GPU path is provided. Construction and traversal are branch-heavy,
+low-arithmetic-intensity byte operations, so transfer and launch overhead would
+dominate useful GPU work.
 
 Storage is also less succinct than MARISA:
 
@@ -128,7 +130,8 @@ lookup uses a lazily-created Python ID map, avoiding per-query FFI overhead.
 Prefix lookup only tests key lengths that can be terminal. For `key_ids`,
 Python concatenates all query bytes and supplies `int64` boundaries; Mojo
 keeps batches of at most 4,096 queries serial and processes larger batches in
-chunks on up to eight workers.
+serial chunks. Boundary validation, common-prefix comparison, segment copying,
+and segment comparison use SIMD-width blocks with scalar remainder loops.
 
 ctypes passes every NumPy buffer as an integer address together with its
 logical length. Python checks the exact dtype, one-dimensional C-contiguous

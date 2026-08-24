@@ -7,6 +7,24 @@ comptime BATCH_GRAIN = 4096
 comptime W = simd_width_of[DType.float64]()
 
 
+def offsets_nondecreasing(offsets: I64Ptr, count: Int) -> Bool:
+    var i = 0
+    while i + W <= count:
+        var left = offsets.load[width=W](i)
+        var right = offsets.load[width=W](i + 1)
+        var invalid = left.gt(right).select(
+            SIMD[DType.int64, W](1), SIMD[DType.int64, W](0)
+        )
+        if invalid.reduce_add() != 0:
+            return False
+        i += W
+    while i < count:
+        if offsets[i] > offsets[i + 1]:
+            return False
+        i += 1
+    return True
+
+
 def common_prefix_length(
     data: BPtr,
     first_start: Int,
@@ -179,9 +197,8 @@ def mmtrie_lookup_many(
     var ids = I32Ptr(unsafe_from_address=ids_addr)
     if query_offsets[0] != 0 or Int(query_offsets[count]) != data_size:
         return 3
-    for i in range(count):
-        if query_offsets[i] < 0 or query_offsets[i] > query_offsets[i + 1]:
-            return 3
+    if not offsets_nondecreasing(query_offsets, count):
+        return 3
     if offsets[0] != 0 or Int(offsets[node_count]) != edge_count:
         return 4
     for node in range(node_count):
@@ -251,9 +268,8 @@ def mmtrie_build(
     var key_offsets = I64Ptr(unsafe_from_address=key_offsets_addr)
     if key_offsets[0] != 0 or Int(key_offsets[count]) != data_size:
         return 3
-    for i in range(count):
-        if key_offsets[i] < 0 or key_offsets[i] > key_offsets[i + 1]:
-            return 3
+    if not offsets_nondecreasing(key_offsets, count):
+        return 3
     var node_lo = I32Ptr(unsafe_from_address=node_lo_addr)
     var node_hi = I32Ptr(unsafe_from_address=node_hi_addr)
     var node_depth = I32Ptr(unsafe_from_address=node_depth_addr)

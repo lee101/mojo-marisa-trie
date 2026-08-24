@@ -96,8 +96,12 @@ class _StaticTrie:
     ):
         del num_tries, binary, cache_size, order, weights
         keys = [] if arg is None else list(arg)
-        normalized = {self._normalize_key(key) for key in keys}
-        ordered = sorted(normalized)
+        if self._binary:
+            if not all(isinstance(key, bytes) for key in keys):
+                raise TypeError("BinaryTrie keys must be bytes")
+        elif not all(isinstance(key, str) for key in keys):
+            raise TypeError("Trie keys must be str")
+        ordered = sorted(set(keys))
         if len(ordered) >= 2**31:
             raise OverflowError("this implementation supports fewer than 2^31 keys")
         self._keys_by_id = ordered
@@ -122,7 +126,7 @@ class _StaticTrie:
         return key if self._binary else key.decode("utf-8")
 
     def _build_arrays(self, keys) -> None:
-        encoded = [self._bytes(key) for key in keys]
+        encoded = keys if self._binary else list(map(str.encode, keys))
         if len(encoded) > (_I32_MAX - 1) // 2:
             raise OverflowError("too many keys for the int32 Mojo topology")
         key_offsets = np.empty(len(encoded) + 1, dtype=np.int64)
@@ -317,14 +321,12 @@ class _StaticTrie:
         key = self._normalize_key(key)
         key_len = len(key)
         mapping = self._id_map()
-        result = []
-        for prefix_len in self._key_lengths:
-            if prefix_len > key_len:
-                break
-            prefix = key[:prefix_len]
-            if prefix in mapping:
-                result.append(prefix)
-        return result
+        return [
+            prefix
+            for prefix_len in self._key_lengths
+            if prefix_len <= key_len
+            and (prefix := key[:prefix_len]) in mapping
+        ]
 
     def has_keys_with_prefix(self, prefix=None) -> bool:
         warnings.warn(

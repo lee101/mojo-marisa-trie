@@ -135,7 +135,7 @@ def test_simd_segment_comparison_and_scalar_tail():
     assert np.array_equal(result, expected)
 
 
-def test_bulk_parallel_threshold_matches_serial_path():
+def test_bulk_chunk_threshold_matches_serial_path():
     grain = int(lib().mmtrie_batch_grain())
     keys = [f"parallel/{i:05d}" for i in range(grain + 1)]
     trie = mm.Trie(keys)
@@ -172,6 +172,31 @@ def test_ffi_rejects_invalid_lengths_and_buffer_layouts():
     readonly = np.frombuffer(b"x", dtype=np.uint8)
     with pytest.raises(ValueError, match="writable"):
         addr(readonly, np.uint8)
+
+
+def test_offset_validation_rejects_invalid_scalar_tail():
+    width = int(lib().mmtrie_simd_width())
+    trie = mm.Trie(["a"])
+    count = width + 1
+    data = np.frombuffer(b"a" * count, dtype=np.uint8)
+    query_offsets = np.arange(count + 1, dtype=np.int64)
+    query_offsets[-2] = len(data) + 1
+    query_offsets[-1] = len(data)
+    result = np.empty(count, dtype=np.int32)
+    status = lib().mmtrie_lookup_many(
+        *trie._topology_addrs,
+        len(trie._offsets) - 1,
+        trie._edge_count,
+        trie._pool_size,
+        addr(data, np.uint8, writable=False),
+        len(data),
+        addr(query_offsets, np.int64, writable=False),
+        len(query_offsets),
+        count,
+        addr(result, np.int32),
+        len(result),
+    )
+    assert status == 3
 
 
 def test_bytes_trie_parity(upstream):
